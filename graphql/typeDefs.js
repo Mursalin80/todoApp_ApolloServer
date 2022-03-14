@@ -16,6 +16,7 @@ const typeDefs = gql`
     state: String!
     DOB: String
     todos: [Todo]
+    token: String
     createdAt: String
     updatedAT: String
   }
@@ -25,6 +26,7 @@ const typeDefs = gql`
     email: String!
     state: String
     DOB: String
+    password: String!
   }
 
   type Todo {
@@ -40,6 +42,15 @@ const typeDefs = gql`
     title: String
     description: String
     auther: ID
+  }
+
+  type Token {
+    token: String
+  }
+
+  input loginInput {
+    email: String
+    password: String
   }
 
   # The "Query" type is special: it lists all of the available queries that
@@ -61,6 +72,9 @@ const typeDefs = gql`
 
     #  adding todo
     addTodo(input: todoInput): Todo
+
+    # login
+    login(input: loginInput): Token
   }
 `;
 
