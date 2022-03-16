@@ -1,18 +1,3 @@
-const { ApolloError } = require('apollo-server');
-
-module.exports.asyncErrors = function asyncErrors(func) {
-  return async (...funcArgs) => {
-    try {
-      return await func(...funcArgs);
-    } catch (error) {
-      // re-throw all other errors
-      console.log(error);
-      throw error;
-      // throw new ApolloError(error.message);
-    }
-  };
-};
-
 // module.exports = function translateErrors(func) {
 //   return async (...funcArgs) => {
 //     try {
@@ -35,11 +20,3 @@ module.exports.asyncErrors = function asyncErrors(func) {
 //     }
 //   };
 // };
-
-module.exports.asyncHandler =
-  (fn) =>
-  (...funcArgs) =>
-    Promise.resolve(fn(...funcArgs)).catch((error) => {
-      console.log('asyncHandler :', error);
-      throw error;
-    });

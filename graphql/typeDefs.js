@@ -1,4 +1,4 @@
-const { gql } = require('apollo-server');
+const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
   # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
@@ -41,7 +41,6 @@ const typeDefs = gql`
   input todoInput {
     title: String
     description: String
-    auther: ID
   }
 
   type Token {
@@ -70,11 +69,17 @@ const typeDefs = gql`
     #    addding User
     addUser(input: userInput): User
 
+    # login
+    login(input: loginInput): Token
+
     #  adding todo
     addTodo(input: todoInput): Todo
 
-    # login
-    login(input: loginInput): Token
+    #  Delet todo
+    deleteTodo(id: String): Todo
+
+    # Update Todo
+    updateTodo(id: String, input: todoInput): Todo
   }
 `;
 

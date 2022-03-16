@@ -11,6 +11,22 @@ async function startApolloServer() {
   const server = new ApolloServer({
     typeDefs,
     resolvers,
+    context: ({ req }) => {
+      token = req.headers.authorization?.split(' ')[1] || '';
+      return { token };
+    },
+    formatError: (err) => {
+      // Don't give the specific errors to the client.
+      if (err.message.startsWith('Database Error: ')) {
+        return new Error('Internal server error');
+      }
+      if (err.message.includes('Cast to ObjectId failed')) {
+        return new Error('MongoDB Error: Invalid ID');
+      }
+      // Otherwise return the original error. The error can also
+      // be manipulated in other ways, as long as it's returned.
+      return err;
+    },
   });
   await server.start();
 

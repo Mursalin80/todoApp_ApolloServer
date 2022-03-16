@@ -26,7 +26,6 @@
   },
   "homepage": "https://github.com/Mursalin80/todoApp_ApolloServer#readme",
   "dependencies": {
-    "apollo-server": "^3.6.4",
     "apollo-server-express": "^3.6.4",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.0.0",
