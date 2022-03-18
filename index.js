@@ -1,24 +1,16 @@
-const { createServer } = require('http');
 const { ApolloServerPluginDrainHttpServer } = require('apollo-server-core');
-const { makeExecutableSchema } = require('@graphql-tools/schema');
 const { WebSocketServer } = require('ws');
 const { useServer } = require('graphql-ws/lib/use/ws');
 const { ApolloServer } = require('apollo-server-express');
-const express = require('express');
-const cors = require('cors');
 require('dotenv').config();
 
-const typeDefs = require('./graphql/typeDefs');
-const resolvers = require('./graphql/resolvers');
 const db = require('./utils/db_connect');
 const TypecodeAPI = require('./apis/typicodeRestApi');
+const { schema, getDynamicContext, app, httpServer } = require('./server/ulit');
+
+const PORT = 4000;
 
 async function startApolloServer() {
-  const schema = makeExecutableSchema({ typeDefs, resolvers });
-
-  const app = express();
-  const httpServer = createServer(app);
-
   const wsServer = new WebSocketServer({
     // This is the `httpServer` we created in a previous step.
     server: httpServer,
@@ -27,7 +19,28 @@ async function startApolloServer() {
     path: '/graphql',
   });
 
-  const serverCleanup = useServer({ schema }, wsServer);
+  const serverCleanup = useServer(
+    {
+      schema,
+      // Adding a context property lets you add data to your GraphQL operation context
+      context: (ctx, msg, args) => {
+        // You can define your own function for setting a dynamic context
+        // or provide a static value
+        return getDynamicContext(ctx, msg, args);
+      },
+      onConnect: async (ctx) => {
+        // Check authentication every time a client connects.
+        // if (tokenIsNotValid(ctx.connectionParams)) {
+        //   throw new Error('Auth token missing!');
+        // }
+        console.log('Client connected!');
+      },
+      onDisconnect(ctx, code, reason) {
+        console.log('Client Disconnected!');
+      },
+    },
+    wsServer
+  );
 
   const server = new ApolloServer({
     schema,
@@ -47,7 +60,6 @@ async function startApolloServer() {
     ],
     context: ({ req }) => {
       token = req.headers.authorization?.split(' ')[1] || '';
-      console.log(token);
       return { token };
     },
     dataSources: () => {
@@ -70,7 +82,6 @@ async function startApolloServer() {
   await server.start();
 
   server.applyMiddleware({ app });
-  const PORT = 4000;
   httpServer.listen(PORT, () => {
     db.connectDB();
     console.log(
