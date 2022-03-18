@@ -1,19 +1,59 @@
+const { createServer } = require('http');
+const { ApolloServerPluginDrainHttpServer } = require('apollo-server-core');
+const { makeExecutableSchema } = require('@graphql-tools/schema');
+const { WebSocketServer } = require('ws');
+const { useServer } = require('graphql-ws/lib/use/ws');
 const { ApolloServer } = require('apollo-server-express');
 const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
 const typeDefs = require('./graphql/typeDefs');
 const resolvers = require('./graphql/resolvers');
 const db = require('./utils/db_connect');
-
-// env
-require('dotenv').config();
+const TypecodeAPI = require('./apis/typicodeRestApi');
 
 async function startApolloServer() {
+  const schema = makeExecutableSchema({ typeDefs, resolvers });
+
+  const app = express();
+  const httpServer = createServer(app);
+
+  const wsServer = new WebSocketServer({
+    // This is the `httpServer` we created in a previous step.
+    server: httpServer,
+    // Pass a different path here if your ApolloServer serves at
+    // a different path.
+    path: '/graphql',
+  });
+
+  const serverCleanup = useServer({ schema }, wsServer);
+
   const server = new ApolloServer({
-    typeDefs,
-    resolvers,
+    schema,
+    plugins: [
+      // Proper shutdown for the HTTP server.
+      ApolloServerPluginDrainHttpServer({ httpServer }),
+      // Proper shutdown for the WebSocket server.
+      {
+        async serverWillStart() {
+          return {
+            async drainServer() {
+              await serverCleanup.dispose();
+            },
+          };
+        },
+      },
+    ],
     context: ({ req }) => {
       token = req.headers.authorization?.split(' ')[1] || '';
+      console.log(token);
       return { token };
+    },
+    dataSources: () => {
+      return {
+        typecodeApi: new TypecodeAPI(),
+      };
     },
     formatError: (err) => {
       // Don't give the specific errors to the client.
@@ -23,25 +63,20 @@ async function startApolloServer() {
       if (err.message.includes('Cast to ObjectId failed')) {
         return new Error('MongoDB Error: Invalid ID');
       }
-      // Otherwise return the original error. The error can also
-      // be manipulated in other ways, as long as it's returned.
       return err;
     },
   });
+
   await server.start();
 
-  const app = express();
-  await db.connectDB();
-
-  // Additional middleware can be mounted at this point to run before Apollo.
-  //   app.use('*', jwtCheck, requireAuth, checkScope);
-
-  // Mount Apollo middleware here.
   server.applyMiddleware({ app });
-  await new Promise((resolve) => app.listen({ port: 4000 }, resolve));
-  console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`);
-
-  return { server, app };
+  const PORT = 4000;
+  httpServer.listen(PORT, () => {
+    db.connectDB();
+    console.log(
+      `Server is now running on http://localhost:${PORT}${server.graphqlPath}`
+    );
+  });
 }
 
 startApolloServer();

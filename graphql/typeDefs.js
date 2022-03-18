@@ -9,6 +9,29 @@ const typeDefs = gql`
     author: String
   }
 
+  type Company {
+    name: String
+    catchPhrase: String
+    bs: String
+  }
+  type Address {
+    street: String
+    suite: String
+    city: String
+    zipcode: String
+  }
+
+  type restUser {
+    id: Int
+    name: String
+    username: String
+    email: String
+    phone: String
+    website: String
+    company: Company
+    address: Address
+  }
+
   type User {
     id: ID
     name: String!
@@ -60,6 +83,8 @@ const typeDefs = gql`
     user: [User]
     todos: [Todo]
     me: User
+    restUsers: [restUser]
+    restUser(id: String): restUser
   }
 
   type Mutation {
@@ -80,6 +105,9 @@ const typeDefs = gql`
 
     # Update Todo
     updateTodo(id: String, input: todoInput): Todo
+  }
+  type Subscription {
+    todoCreated: Todo
   }
 `;
 

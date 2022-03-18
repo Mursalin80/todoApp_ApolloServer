@@ -2,23 +2,21 @@ const {
   UserInputError,
   AuthenticationError,
 } = require('apollo-server-express');
-const { asyncErrors, asyncHandler } = require('../utils/async_error');
 const bcrypt = require('bcryptjs');
+const { PubSub } = require('graphql-subscriptions');
 
 const Books = require('../models/Books');
 const User = require('../models/user');
 const Todo = require('../models/todo');
 const { jwtSign, jwtVerify } = require('../utils/jwt');
 
-// const asyError = require('../utils/async_error');
+const pubsub = new PubSub();
 
 const resolvers = {
   Query: {
     books: () => Books,
     todos: async () => {
       let todos = await Todo.find({}).populate('auther').exec();
-
-      console.log(todos);
 
       return [...todos];
     },
@@ -34,6 +32,14 @@ const resolvers = {
         id: id,
         ...user._doc,
       };
+    },
+
+    restUsers: (_, arg, { dataSources }) => {
+      return dataSources.typecodeApi.getUsers();
+    },
+
+    restUser: (_, { id }, { dataSources }) => {
+      return dataSources.typecodeApi.getUser(id);
     },
   },
 
@@ -99,6 +105,14 @@ const resolvers = {
       let user = await User.findById(auther);
       user.todos.push(todo);
       await user.save();
+
+      pubsub.publish('new_todo', {
+        todoCreated: {
+          id: todo._id,
+          ...todo._doc,
+        },
+      });
+
       return {
         id: todo._id,
         ...todo._doc,
@@ -129,6 +143,13 @@ const resolvers = {
         id,
         ...todo._doc,
       };
+    },
+  },
+
+  Subscription: {
+    todoCreated: {
+      // subscribe: () => pubSup.asyncIterator(['todo_created']),
+      subscribe: () => pubsub.asyncIterator(['new_todo']),
     },
   },
 };
