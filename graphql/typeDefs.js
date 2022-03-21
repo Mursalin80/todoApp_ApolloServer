@@ -1,12 +1,21 @@
 const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
-  # Comments in GraphQL strings (such as this one) start with the hash (#) symbol.
+  scalar Upload
+  type File {
+    filename: String!
+    mimetype: String!
+    encoding: String!
+  }
 
-  # This "Book" type defines the queryable fields for every book in our data source.
   type Book {
     title: String
     author: String
+  }
+  type File {
+    filename: String!
+    mimetype: String!
+    encoding: String!
   }
 
   type Company {
@@ -75,6 +84,15 @@ const typeDefs = gql`
     password: String
   }
 
+  type forgetPassword {
+    email: String
+  }
+
+  input resetPassword {
+    token: String
+    password: String
+  }
+
   # The "Query" type is special: it lists all of the available queries that
   # clients can execute, along with the return type for each. In this
   # case, the "books" query returns an array of zero or more Books (defined above).
@@ -85,6 +103,7 @@ const typeDefs = gql`
     me: User
     restUsers: [restUser]
     restUser(id: String): restUser
+    forgetPassword(email: String): forgetPassword
   }
 
   type Mutation {
@@ -105,6 +124,7 @@ const typeDefs = gql`
 
     # Update Todo
     updateTodo(id: String, input: todoInput): Todo
+    resetPassword(input: resetPassword): User
   }
   type Subscription {
     todoCreated: Todo

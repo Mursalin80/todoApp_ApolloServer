@@ -4,15 +4,20 @@ const {
 } = require('apollo-server-express');
 const bcrypt = require('bcryptjs');
 const { PubSub } = require('graphql-subscriptions');
+const sgMail = require('@sendgrid/mail');
+const { GraphQLUpload } = require('graphql-upload');
+const crypto = require('crypto');
 
 const Books = require('../models/Books');
 const User = require('../models/user');
 const Todo = require('../models/todo');
 const { jwtSign, jwtVerify } = require('../utils/jwt');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const pubsub = new PubSub();
 
 const resolvers = {
+  Upload: GraphQLUpload,
   Query: {
     books: () => Books,
     todos: async () => {
@@ -34,12 +39,43 @@ const resolvers = {
       };
     },
 
+    // // Rest API Users
     restUsers: (_, arg, { dataSources }) => {
       return dataSources.typecodeApi.getUsers();
     },
 
+    // Rest API User
     restUser: (_, { id }, { dataSources }) => {
       return dataSources.typecodeApi.getUser(id);
+    },
+
+    // Rest User Password
+    forgetPassword: async (_, { email }, { req }) => {
+      const user = await User.findOne({ email });
+      if (!user) {
+        throw new UserInputError('Invalid email');
+      }
+      const resetToken = user.getResetPasswordToken();
+      await user.save({ validateBeforeSave: false });
+
+      // Create reset password url
+      // const resetUrl = `${req.protocol}://${req.get('host')}/password/reset/${resetToken}`;
+
+      const msg = {
+        to: email, // Change to your recipient
+        from: process.env.SENDGRID_FROM_EMAIL, // Change to your verified sender
+        subject: 'Password Reset URL',
+        text: 'Your Token to reset your password.',
+        html: `<strong>${resetToken}</strong>`,
+      };
+      sgMail.send(msg).catch((error) => {
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpire = undefined;
+        user.save();
+        console.error(error);
+      });
+
+      return { email };
     },
   },
 
@@ -47,7 +83,8 @@ const resolvers = {
     // Add a User
     addUser: async (_, { input }, ctx) => {
       let { name, email, DOB, state, password } = input;
-
+      // const { createReadStream, filename, mimetype, encoding } = await file;
+      // console.log({ filename, mimetype });
       let exUser = await User.findOne({ email });
       if (exUser) {
         throw new UserInputError('User already Exist!', {
@@ -95,6 +132,39 @@ const resolvers = {
       };
     },
 
+    // Reset User Password
+    resetPassword: async (_, { input: { token, password } }, ctx) => {
+      const resetPasswordToken = crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex');
+
+      const user = await User.findOne({
+        resetPasswordToken,
+        resetPasswordExpire: { $gt: Date.now() },
+      });
+
+      if (!user) {
+        throw new UserInputError('Invalid or Expaired token.');
+      }
+      if (!password) {
+        throw new UserInputError('Password is required.');
+      }
+      let hashPassword = await bcrypt.hash(password, 10);
+      let jwtToken = jwtSign(user._id);
+      user.password = hashPassword;
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpire = undefined;
+
+      await user.save();
+
+      return {
+        id: user._id,
+        ...user._doc,
+        token: jwtToken,
+      };
+    },
+
     //  Add Todo
     addTodo: async (_, { input }, { token }) => {
       let auther = jwtVerify(token);
@@ -126,6 +196,34 @@ const resolvers = {
       let todo = await Todo.findByIdAndDelete(id);
 
       let user = await User.findById(auther);
+      //Email
+
+      let toEmail = user.email;
+
+      const msg = {
+        to: toEmail,
+        from: process.env.SENDGRID_FROM_EMAIL,
+        subject: `${todo._id} todo By ${user.name} has been deleted`,
+        text: `${todo.title} todo By ${user.name} has been deleted`,
+        html: `<pre>
+        <h2>Todo Title: <h2/>${todo.title} <br/>
+        <h2>Todo Description: <h2/>${todo.description}
+        is Deleted!
+        </pre>`,
+      };
+
+      (async () => {
+        try {
+          await sgMail.send(msg);
+        } catch (error) {
+          console.error(error);
+
+          if (error.response) {
+            console.error(error.response.body);
+          }
+        }
+      })();
+
       user.todos.pull(todo);
       await user.save();
       return {

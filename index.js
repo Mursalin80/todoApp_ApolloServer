@@ -3,10 +3,18 @@ const { WebSocketServer } = require('ws');
 const { useServer } = require('graphql-ws/lib/use/ws');
 const { ApolloServer } = require('apollo-server-express');
 require('dotenv').config();
+const { graphqlUploadExpress } = require('graphql-upload');
 
 const db = require('./utils/db_connect');
-const TypecodeAPI = require('./apis/typicodeRestApi');
-const { schema, getDynamicContext, app, httpServer } = require('./server/ulit');
+
+const {
+  schema,
+  getDynamicContext,
+  app,
+  httpServer,
+  errFormat,
+  reastApi,
+} = require('./server/ulit');
 
 const PORT = 4000;
 
@@ -58,36 +66,27 @@ async function startApolloServer() {
         },
       },
     ],
-    context: ({ req }) => {
+    context: ({ req, res }) => {
       token = req.headers.authorization?.split(' ')[1] || '';
-      return { token };
+      return { token, req, res };
     },
-    dataSources: () => {
-      return {
-        typecodeApi: new TypecodeAPI(),
-      };
-    },
-    formatError: (err) => {
-      // Don't give the specific errors to the client.
-      if (err.message.startsWith('Database Error: ')) {
-        return new Error('Internal server error');
-      }
-      if (err.message.includes('Cast to ObjectId failed')) {
-        return new Error('MongoDB Error: Invalid ID');
-      }
-      return err;
-    },
+    dataSources: reastApi,
+    formatError: errFormat,
   });
 
   await server.start();
+  app.use(graphqlUploadExpress());
 
   server.applyMiddleware({ app });
-  httpServer.listen(PORT, () => {
-    db.connectDB();
-    console.log(
-      `Server is now running on http://localhost:${PORT}${server.graphqlPath}`
-    );
-  });
 }
 
 startApolloServer();
+
+app.get('/', (req, res) => {
+  res.send({ developer: ['Mursalin', 'Muhammad'] });
+});
+
+httpServer.listen(PORT, () => {
+  db.connectDB();
+  console.log(`Server is now running on http://localhost:${PORT}`);
+});
