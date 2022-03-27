@@ -44,4 +44,5 @@ module.exports = {
   getDynamicContext,
   errFormat,
   reastApi,
+  express,
 };

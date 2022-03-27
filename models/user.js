@@ -14,6 +14,7 @@ const userSchems = new Schema(
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
+    avator: String,
     state: String,
     DOB: String,
     todos: [{ type: Schema.Types.ObjectId, ref: 'Todo' }],

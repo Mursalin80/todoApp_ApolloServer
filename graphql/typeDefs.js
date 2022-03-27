@@ -111,7 +111,7 @@ const typeDefs = gql`
     addBook(title: String, author: String): Book
 
     #    addding User
-    addUser(input: userInput): User
+    addUser(input: userInput, file: Upload): User
 
     # login
     login(input: loginInput): Token

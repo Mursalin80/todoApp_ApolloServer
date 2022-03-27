@@ -1,19 +1,25 @@
 const {
   UserInputError,
   AuthenticationError,
+  ApolloError,
 } = require('apollo-server-express');
 const bcrypt = require('bcryptjs');
 const { PubSub } = require('graphql-subscriptions');
 const sgMail = require('@sendgrid/mail');
 const { GraphQLUpload } = require('graphql-upload');
 const crypto = require('crypto');
+const { parse, join } = require('path');
+const { unlink, createWriteStream } = require('fs');
+const { finished } = require('stream/promises');
 
 const Books = require('../models/Books');
 const User = require('../models/user');
 const Todo = require('../models/todo');
 const { jwtSign, jwtVerify } = require('../utils/jwt');
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const { readFile } = require('../utils/readFile');
+const { v4: uuidv4 } = require('uuid');
 
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 const pubsub = new PubSub();
 
 const resolvers = {
@@ -81,10 +87,9 @@ const resolvers = {
 
   Mutation: {
     // Add a User
-    addUser: async (_, { input }, ctx) => {
+    addUser: async (_, { input, file }, ctx) => {
       let { name, email, DOB, state, password } = input;
-      // const { createReadStream, filename, mimetype, encoding } = await file;
-      // console.log({ filename, mimetype });
+
       let exUser = await User.findOne({ email });
       if (exUser) {
         throw new UserInputError('User already Exist!', {
@@ -92,6 +97,7 @@ const resolvers = {
         });
       }
 
+      let url = await readFile(file);
       let hashPassword = await bcrypt.hash(password, 10);
 
       const user = new User({
@@ -99,10 +105,17 @@ const resolvers = {
         email,
         DOB,
         state,
+        avator: url,
         password: hashPassword,
       });
-
-      await user.save();
+      try {
+        await user.save();
+      } catch (error) {
+        unlink(url, () => {
+          console.log(error.message);
+        });
+        return error;
+      }
       let token = jwtSign(user._id);
 
       return {

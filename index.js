@@ -4,6 +4,7 @@ const { useServer } = require('graphql-ws/lib/use/ws');
 const { ApolloServer } = require('apollo-server-express');
 require('dotenv').config();
 const { graphqlUploadExpress } = require('graphql-upload');
+const path = require('path');
 
 const db = require('./utils/db_connect');
 
@@ -14,6 +15,7 @@ const {
   httpServer,
   errFormat,
   reastApi,
+  express,
 } = require('./server/ulit');
 
 const PORT = 4000;
@@ -75,7 +77,9 @@ async function startApolloServer() {
   });
 
   await server.start();
+  // file upload
   app.use(graphqlUploadExpress());
+  app.use('/static', express.static(path.join(__dirname, 'upload')));
 
   server.applyMiddleware({ app });
 }
